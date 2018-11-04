@@ -9,6 +9,7 @@ const rateLimiter = require('./utils/rate_limiter');
 
 const routeHandler = require('./routes');
 const exceptionHandler = require('./exceptions');
+const MongoContext = require('./models/mongodb');
 
 const app = express();
 
@@ -26,6 +27,7 @@ app.use(rateLimiter());
 /** */
 
 /** App Handlers */
+MongoContext.boot();
 routeHandler(app);
 exceptionHandler(app);
 /** */
