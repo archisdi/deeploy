@@ -42,9 +42,11 @@ const deployer = async (project, buildType) => {
 
 exports.deploy = async (req, res, next) => {
     try {
-        console.log(req.body.payload);
-        const branch = req.body.ref.split('/').slice(-1)[0];
-        const projectName = req.body.repository.name;
+        const payload = req.body.payload;
+        if ('zen' in payload) return apiResponse(res, payload.zen, 200);
+
+        const branch = payload.ref.split('/').slice(-1)[0];
+        const projectName = payload.repository.name;
         const buildType = req.query.build_type === 'clean' ? SCRIPT.CLEAN_BUILD : SCRIPT.BUILD;
 
         // check if push event is from master branch
