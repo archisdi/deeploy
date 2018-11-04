@@ -3,8 +3,6 @@ const logger = require('morgan');
 const bodyParser = require('body-parser');
 const helmet = require('helmet');
 const cors = require('cors');
-// const mongo = require('./models/mongodb');
-
 
 const apiGuard = require('./middlewares/request-handler/api_guard');
 const rateLimiter = require('./utils/rate_limiter');
@@ -13,7 +11,6 @@ const routeHandler = require('./routes');
 const exceptionHandler = require('./exceptions');
 
 const app = express();
-// mongo.boot();
 
 /** Plugins */
 app.use(helmet());
