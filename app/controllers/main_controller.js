@@ -42,8 +42,7 @@ const deployer = async (project, buildType) => {
 
 exports.deploy = async (req, res, next) => {
     try {
-        const payload = req.body.payload;
-        console.log(payload);
+        const payload = JSON.parse(req.body.payload);
         if ('zen' in payload) return apiResponse(res, payload.zen, 200);
 
         const branch = payload.ref.split('/').slice(-1)[0];
