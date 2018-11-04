@@ -9,7 +9,7 @@ exports.findOne = async (conditions) => {
 
 exports.update = async (conditions, data) => {
     const mongoClient = await MongoContext.getInstance();
-    return mongoClient.collection(collection).update(conditions, { $set: data });
+    return mongoClient.collection(collection).updateOne(conditions, { $set: data });
 };
 
 module.exports = exports;
