@@ -42,7 +42,7 @@ const deployer = async (project, buildType) => {
 
 exports.deploy = async (req, res, next) => {
     try {
-        console.log(req.body);
+        console.log(req.body.payload);
         const branch = req.body.ref.split('/').slice(-1)[0];
         const projectName = req.body.repository.name;
         const buildType = req.query.build_type === 'clean' ? SCRIPT.CLEAN_BUILD : SCRIPT.BUILD;
