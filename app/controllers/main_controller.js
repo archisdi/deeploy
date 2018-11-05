@@ -31,8 +31,8 @@ const deployer = async (project, server, buildType, source) => {
             deployStatus = DEPLOYMENT_STATUS.FAIL;
             log = LogRepo.create(LogTransformer(server, project, source, { error, std: stderr }, deployStatus));
         } else {
-            deployStatus = DEPLOYMENT_STATUS.FAIL;
-            log = LogRepo.create(LogTransformer(server, project, source, stdout, DEPLOYMENT_STATUS.SUCCESS));
+            deployStatus = DEPLOYMENT_STATUS.SUCCESS;
+            log = LogRepo.create(LogTransformer(server, project, source, stdout, deployStatus));
         }
         if (project.slack_webhook) slackNotif = slack.notify(server, project, deployStatus);
 
