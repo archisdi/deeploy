@@ -12,7 +12,7 @@ const {
     BRANCH, STATUS, DEPLOYMENT_STATUS, PROJECT_STATUS, SCRIPT, SOURCE
 } = require('../utils/constant');
 
-const deployer = async (project, server, buildType, source) => {
+const deployer = async (project, server, buildType, source, trigger) => {
     // concat commands
     const commands = [`cd ${project.app_dir}`];
     commands.push(...project.scripts.pre);
@@ -35,7 +35,7 @@ const deployer = async (project, server, buildType, source) => {
         }
 
         // create slack promise if exsist
-        if (project.slack_webhook) slackNotif = slack.notify(server, project, source, deployStatus);
+        if (project.slack_webhook) slackNotif = slack.notify(server, project, source, trigger, deployStatus);
 
         return Promise.join(log, slackNotif);
     });
@@ -47,7 +47,10 @@ exports.deploy = async (req, res, next) => {
         const buildType = query.build_type === 'clean' ? SCRIPT.CLEAN_BUILD : SCRIPT.BUILD;
         const source = params.source;
 
+        if (process.env.debug === 'true') console.log({ params, query, body });
+
         let projectName;
+        let trigger;
         switch (source) {
         case SOURCE.GITHUB: {
             const payload = JSON.parse(body.payload);
@@ -61,20 +64,29 @@ exports.deploy = async (req, res, next) => {
             }
 
             projectName = payload.repository.name;
-            break;
-        }
-
-        case SOURCE.MANUAL: {
-            projectName = body.project_name;
+            trigger = payload.pusher.name;
             break;
         }
 
         case SOURCE.BITBUCKET: {
-            return next(customError('source not yet supported', 403));
+            const branch = body.push.changes[0].new.name;
+            if (branch !== BRANCH.MASTER) {
+                return apiResponse(res, 'skipping app deployment, branch is not master', 200);
+            }
+
+            projectName = body.repository.name;
+            trigger = body.actor.display_name;
+            break;
         }
 
         case SOURCE.GITLAB: {
             return next(customError('source not yet supported', 403));
+        }
+
+        case SOURCE.MANUAL: {
+            projectName = body.project_name;
+            trigger = '-';
+            break;
         }
 
         default:
@@ -96,7 +108,7 @@ exports.deploy = async (req, res, next) => {
         await ProjectRepo.update({ name: projectName }, { status: PROJECT_STATUS.DEPLOYING });
 
         // deploy project
-        await deployer(project, server, buildType, 'github');
+        await deployer(project, server, buildType, source, trigger);
 
         return apiResponse(res, 'trigger running...', 200);
     } catch (error) {

@@ -7,7 +7,7 @@ const getSlackInstance = (url) => {
     return instance.setWebhook(url);
 };
 
-exports.notify = async (server, project, source, status) => {
+exports.notify = async (server, project, source, trigger, status) => {
     const slackInstance = await getSlackInstance(project.slack_webhook);
     slackInstance.webhook({
         text: `Deployment ${status}`,
@@ -24,8 +24,14 @@ exports.notify = async (server, project, source, status) => {
                 short: true
             },
             {
+                title: 'Source',
+                value: source,
+                short: true
+            },
+            {
                 title: 'Trigger',
-                value: source
+                value: trigger,
+                short: true
             }
             ],
             ts: moment().unix()
