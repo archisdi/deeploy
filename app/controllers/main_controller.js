@@ -9,7 +9,7 @@ const LogRepo = require('../repositories/log_repo');
 const LogTransformer = require('../utils/transformers/log_transformer');
 const slack = require('../utils/slack');
 const {
-    BRANCH, STATUS, DEPLOYMENT_STATUS, PROJECT_STATUS, SCRIPT
+    BRANCH, STATUS, DEPLOYMENT_STATUS, PROJECT_STATUS, SCRIPT, SOURCE
 } = require('../utils/constant');
 
 const deployer = async (project, server, buildType, source) => {
@@ -33,23 +33,53 @@ const deployer = async (project, server, buildType, source) => {
             deployStatus = DEPLOYMENT_STATUS.SUCCESS;
             log = LogRepo.create(LogTransformer(server, project, source, stdout, deployStatus));
         }
+
+        // create slack promise if exsist
         if (project.slack_webhook) slackNotif = slack.notify(server, project, source, deployStatus);
 
         return Promise.join(log, slackNotif);
     });
 };
 
-exports.github = async (req, res, next) => {
+exports.deploy = async (req, res, next) => {
     try {
-        const payload = JSON.parse(req.body.payload);
-        if ('zen' in payload) return apiResponse(res, payload.zen, 200);
+        const { params, query, body } = req;
+        const buildType = query.build_type === 'clean' ? SCRIPT.CLEAN_BUILD : SCRIPT.BUILD;
+        const source = params.source;
 
-        const branch = payload.ref.split('/').slice(-1)[0];
-        const projectName = payload.repository.name;
-        const buildType = req.query.build_type === 'clean' ? SCRIPT.CLEAN_BUILD : SCRIPT.BUILD;
+        let projectName;
+        switch (source) {
+        case SOURCE.GITHUB: {
+            const payload = JSON.parse(body.payload);
+            if ('zen' in payload) {
+                return apiResponse(res, payload.zen, 200);
+            }
 
-        // check if push event is from master branch
-        if (branch !== BRANCH.MASTER) return apiResponse(res, 'skipping app deployment, branch is not master', 200);
+            const branch = payload.ref.split('/').slice(-1)[0];
+            if (branch !== BRANCH.MASTER) {
+                return apiResponse(res, 'skipping app deployment, branch is not master', 200);
+            }
+
+            projectName = payload.repository.name;
+            break;
+        }
+
+        case SOURCE.MANUAL: {
+            projectName = body.project_name;
+            break;
+        }
+
+        case SOURCE.BITBUCKET: {
+            return next(customError('source not yet supported', 403));
+        }
+
+        case SOURCE.GITLAB: {
+            return next(customError('source not yet supported', 403));
+        }
+
+        default:
+            return next(customError('source not recognized', 422));
+        }
 
         // get server
         const server = await ServerRepo.findOne({ server_id: req.params.serverId, is_active: STATUS.ACTIVE });
@@ -67,35 +97,6 @@ exports.github = async (req, res, next) => {
 
         // deploy project
         await deployer(project, server, buildType, 'github');
-
-        return apiResponse(res, 'trigger running...', 200);
-    } catch (error) {
-        return (next(error));
-    }
-};
-
-exports.manual = async (req, res, next) => {
-    try {
-        const { params } = req;
-        const projectName = params.projectName;
-        const buildType = req.query.build_type === 'clean' ? SCRIPT.CLEAN_BUILD : SCRIPT.BUILD;
-
-        // get server
-        const server = await ServerRepo.findOne({ server_id: req.params.serverId, is_active: STATUS.ACTIVE });
-        if (!server) return next(customError('server not found', 404));
-
-        // get project
-        const project = await ProjectRepo.findOne({
-            name: projectName, server_id: server.server_id, is_active: STATUS.ACTIVE
-        });
-        if (!project) return next(customError('project not found', 404));
-        if (project.status === PROJECT_STATUS.DEPLOYING) return next(customError('project already deploying', 403));
-
-        // mark project as deploying
-        await ProjectRepo.update({ name: projectName }, { status: PROJECT_STATUS.DEPLOYING });
-
-        // deploy project
-        await deployer(project, server, buildType, 'manual');
 
         return apiResponse(res, 'trigger running...', 200);
     } catch (error) {

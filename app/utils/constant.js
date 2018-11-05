@@ -22,6 +22,13 @@ const DEPLOYMENT_STATUS = {
     SUCCESS: 'success'
 };
 
+const SOURCE = {
+    GITHUB: 'github',
+    BITBUCKET: 'bitbucket',
+    GITLAB: 'gitlab',
+    MANUAL: 'manual'
+};
+
 module.exports = {
-    BRANCH, SCRIPT, STATUS, PROJECT_STATUS, DEPLOYMENT_STATUS
+    BRANCH, SCRIPT, STATUS, PROJECT_STATUS, DEPLOYMENT_STATUS, SOURCE
 };
