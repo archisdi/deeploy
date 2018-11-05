@@ -15,6 +15,7 @@
     "lint": "eslint --fix app/**"
   },
   "dependencies": {
+    "bluebird": "^3.5.2",
     "body-parser": "~1.18.2",
     "child_process": "^1.0.2",
     "cors": "^2.8.4",

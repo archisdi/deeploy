@@ -1,27 +1,16 @@
 'use_strict';
 
+const Promise = require('bluebird');
 const childProcess = require('child_process');
 const { apiResponse, customError } = require('../utils/helpers');
 const ServerRepo = require('../repositories/server_repo');
 const ProjectRepo = require('../repositories/project_repo');
 const LogRepo = require('../repositories/log_repo');
 const LogTransformer = require('../utils/transformers/log_transformer');
-
-const MASTER_BRANCH = 'master';
-const SCRIPT = {
-    BUILD: 'build',
-    CLEAN_BUILD: 'clean-build'
-};
-
-const STATUS = {
-    ACTIVE: true,
-    DEACTIVE: false
-};
-
-const PROJECT_STATUS = {
-    IDLE: 'idle',
-    DEPLOYING: 'deploying'
-};
+const slack = require('../utils/slack');
+const {
+    BRANCH, STATUS, DEPLOYMENT_STATUS, PROJECT_STATUS, SCRIPT
+} = require('../utils/constant');
 
 const deployer = async (project, server, buildType, source) => {
     // generate commands
@@ -35,9 +24,19 @@ const deployer = async (project, server, buildType, source) => {
     return childProcess.exec(commands.join(' && '), async (error, stdout, stderr) => {
         await ProjectRepo.update({ name: project.name }, { status: PROJECT_STATUS.IDLE });
 
-        if (error) return LogRepo.create(LogTransformer(server, project, source, { error, std: stderr }, 'fail'));
+        let log;
+        let slackNotif;
+        let deployStatus;
+        if (error) {
+            deployStatus = DEPLOYMENT_STATUS.FAIL;
+            log = LogRepo.create(LogTransformer(server, project, source, { error, std: stderr }, deployStatus));
+        } else {
+            deployStatus = DEPLOYMENT_STATUS.FAIL;
+            log = LogRepo.create(LogTransformer(server, project, source, stdout, DEPLOYMENT_STATUS.SUCCESS));
+        }
+        if (project.slack_webhook) slackNotif = slack.notify(server, project, deployStatus);
 
-        return LogRepo.create(LogTransformer(server, project, source, stdout, 'success'));
+        return Promise.join(log, slackNotif);
     });
 };
 
@@ -51,7 +50,7 @@ exports.github = async (req, res, next) => {
         const buildType = req.query.build_type === 'clean' ? SCRIPT.CLEAN_BUILD : SCRIPT.BUILD;
 
         // check if push event is from master branch
-        if (branch !== MASTER_BRANCH) return apiResponse(res, 'skipping app deployment, branch is not master', 200);
+        if (branch !== BRANCH.MASTER) return apiResponse(res, 'skipping app deployment, branch is not master', 200);
 
         // get server
         const server = await ServerRepo.findOne({ server_id: req.params.serverId, is_active: STATUS.ACTIVE });
