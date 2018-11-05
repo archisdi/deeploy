@@ -13,12 +13,11 @@ const {
 } = require('../utils/constant');
 
 const deployer = async (project, server, buildType, source) => {
-    // generate commands
-    const buildCommands = project.scripts[buildType].reduce((val, item) => {
-        val.push(item);
-        return val;
-    }, [`cd ${project.app_dir}`]);
-    const commands = buildCommands.concat(project.scripts.restart_server);
+    // concat commands
+    const commands = [`cd ${project.app_dir}`];
+    commands.push(...project.scripts.pre);
+    commands.push(...project.scripts[buildType]);
+    commands.push(...project.scripts.post);
 
     // run deployment commands
     return childProcess.exec(commands.join(' && '), async (error, stdout, stderr) => {
