@@ -4,6 +4,8 @@ const childProcess = require('child_process');
 const { apiResponse, customError } = require('../utils/helpers');
 const ServerRepo = require('../repositories/server_repo');
 const ProjectRepo = require('../repositories/project_repo');
+const LogRepo = require('../repositories/log_repo');
+const LogTransformer = require('../utils/transformers/log_transformer');
 
 const MASTER_BRANCH = 'master';
 const SCRIPT = {
@@ -21,7 +23,7 @@ const PROJECT_STATUS = {
     DEPLOYING: 'deploying'
 };
 
-const deployer = async (project, buildType) => {
+const deployer = async (project, server, buildType, source) => {
     // generate commands
     const buildCommands = project.scripts[buildType].reduce((val, item) => {
         val.push(item);
@@ -30,13 +32,12 @@ const deployer = async (project, buildType) => {
     const commands = buildCommands.concat(project.scripts.restart_server);
 
     // run deployment commands
-    return childProcess.exec(commands.join(' && '), async (err, stdout, stderr) => {
+    return childProcess.exec(commands.join(' && '), async (error, stdout, stderr) => {
         await ProjectRepo.update({ name: project.name }, { status: PROJECT_STATUS.IDLE });
-        if (err) {
-            console.error(err);
-        }
-        console.log(stdout);
-        console.log(stderr);
+
+        if (error) return LogRepo.create(LogTransformer(server, project, source, { error, std: stderr }, 'fail'));
+
+        return LogRepo.create(LogTransformer(server, project, source, stdout, 'success'));
     });
 };
 
@@ -67,7 +68,7 @@ exports.github = async (req, res, next) => {
         await ProjectRepo.update({ name: projectName }, { status: PROJECT_STATUS.DEPLOYING });
 
         // deploy project
-        await deployer(project, buildType);
+        await deployer(project, server, buildType, 'github');
 
         return apiResponse(res, 'trigger running...', 200);
     } catch (error) {
@@ -96,7 +97,7 @@ exports.manual = async (req, res, next) => {
         await ProjectRepo.update({ name: projectName }, { status: PROJECT_STATUS.DEPLOYING });
 
         // deploy project
-        await deployer(project, buildType);
+        await deployer(project, server, buildType, 'manual');
 
         return apiResponse(res, 'trigger running...', 200);
     } catch (error) {
